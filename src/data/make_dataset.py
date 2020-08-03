@@ -12,6 +12,7 @@ import tweepy
 import pandas as pd
 import boto3
 import numpy as np
+import argparse
 from pathlib import Path
 from dotenv import find_dotenv, load_dotenv
 import time
@@ -91,7 +92,7 @@ while True:
                 print("Collected ", df.shape, " tweets")
                 db_string = "postgresql+psycopg2://postgres:" + POSTGRES_PASSWORD + "@database.cgiiehbwlxvq.us-east-2.rds.amazonaws.com"
                 engine = create_engine(db_string)
-                df.to_sql('streamed_full', engine, schema='twitter', if_exists='append', index=False)
+                df.to_sql(TBL, engine, schema='twitter', if_exists='append', index=False)
                 print('uploaded')
                 return False
 
@@ -123,10 +124,10 @@ while True:
             listener = Listener(time_limit=60*5)
 
             stream = tweepy.Stream(auth=self.api.auth, listener=listener, tweet_mode='extended')
-            stream.filter(languages=['en'], track=["covid", "coronavirus", "COVID-19", "Covid", "corona virus", "Corona virus", "Coronavirus"]) 
+            stream.filter(languages=['en'], track=ALL_WORDS) 
             try:
                 print('Started streaming.')
-                #stream.sample(languages=['en'])
+                stream.sample(languages=['en'])
             except KeyboardInterrupt:
                 print("Stopped.")
             finally:
@@ -155,5 +156,19 @@ while True:
         CONSUMER_API_KEY = os.getenv("CONSUMER_API_KEY")
         CONSUMER_API_SECRET_KEY = os.getenv("CONSUMER_API_SECRET_KEY")
         POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument("table", action="store", help="PostgresSQL table to write to. Either: 'streamed_full' or 'streamed_vaccine'")
+        parser.add_argument("tweet_words", action="store", help="Which words to include in tweets. Currently either: 'covid' or 'vaccines'")
+        results = parser.parse_args()
+
+        TBL = results.table
+        WRDS = results.tweet_words
+        if WRDS == 'covid':
+            ALL_WORDS = ["covid", "coronavirus", "COVID-19", "Covid", "corona virus", "Corona virus", "Coronavirus"]
+        elif WRDS == 'vaccines':
+            ALL_WORDS = ['vaccine', 'vaccines', 'immunization', 'immunity']
+        else:
+            sys.exit()
         
         main()

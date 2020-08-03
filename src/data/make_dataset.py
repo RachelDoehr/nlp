@@ -167,7 +167,7 @@ while True:
         if WRDS == 'covid':
             ALL_WORDS = ["covid", "coronavirus", "COVID-19", "Covid", "corona virus", "Corona virus", "Coronavirus"]
         elif WRDS == 'vaccines':
-            ALL_WORDS = ['vaccine', 'vaccines', 'immunization', 'immunity']
+            ALL_WORDS = ['vaccine', 'vaccines']
         else:
             sys.exit()
         

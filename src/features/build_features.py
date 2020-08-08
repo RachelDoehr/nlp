@@ -116,19 +116,19 @@ class TrainingDataMaker():
             try:
                 D['FLU_vac_intend_to_receive'].append(loaded_d['label']["flu_vaccine_intent_to_receive"])
             except KeyError:
-                D['FLU_vac_intend_to_receive'].append('NA')
+                D['FLU_vac_intend_to_receive'].append('not_available')
             try:
                 D['FLU_vac_received'].append(loaded_d['label']["flu_vaccine_received"])
             except KeyError:
-                D['FLU_vac_received'].append('NA')
+                D['FLU_vac_received'].append('not_available')
             try:
                 D['FLU_vac_relevant'].append(loaded_d['label']["flu_vaccine_relevant"])
             except KeyError:
-                D['FLU_vac_relevant'].append('NA')
+                D['FLU_vac_relevant'].append('not_available')
             try:
                 D['FLU_vac_sentiment'].append(loaded_d['label']["flu_vaccine_sentiment"])
             except KeyError:
-                D['FLU_vac_sentiment'].append('NA')
+                D['FLU_vac_sentiment'].append('not_available')
         
         self.raw_df = pd.DataFrame.from_dict(D, orient='index').transpose()
         self.raw_df.to_csv(self.interim_data_path.joinpath('raw_df.csv').resolve())

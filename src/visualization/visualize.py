@@ -16,7 +16,6 @@ from pandas.plotting import register_matplotlib_converters
 import plotly.graph_objects as go
 import plotly.io as pio
 
-print(pio.renderers.default)
 
 BUCKET = 'tweets-1301' # s3 bucket name
 

@@ -82,7 +82,7 @@ class TrainingDataMaker():
         engine = create_engine(db_string)
 
         self.raw_cv19_df = pd.read_sql(
-            "SELECT * FROM twitter.streamed_vaccine LIMIT 1000",
+            "SELECT * FROM twitter.streamed_vaccine LIMIT 10000",
             con=engine
         )
 

@@ -105,11 +105,29 @@ class NLPClassifier():
             'train_test_flu': [X_train_flu, X_test_flu, y_train_flu, y_test_flu],
             'X_covid': X_covid,
             'fitted_tfidf_vectorizor': fitted_tfidf_vectorizer,
+            'fitted_covid_idf_matrix': tfidf_vectorizer.fit_transform(X_covid),
             'transformed_flu_vectors_train': fitted_tfidf_vectorizer.transform(X_train_flu), # for training
             'transformed_flu_vectors_test': fitted_tfidf_vectorizer.transform(X_test_flu), # for tuning
             'transformed_vectors_covid': fitted_tfidf_vectorizer.transform(X_covid)
         }
         self.logger.info('fit tf-idf model and stored vectors...')
+    
+    def explore_cv19_tfidf(self, root_form):
+
+        '''Visualize the top terms in the doc fitted in tf-idf'''
+
+        vect = TfidfVectorizer(use_idf=True, ngram_range=(1, 1), max_features=200, stop_words='english')
+        X_covid =  self.features_cv19_df[root_form].str.join('')
+
+        tfidf_matrix = vect.fit_transform(X_covid)
+        df = pd.DataFrame(tfidf_matrix.toarray(), columns = vect.get_feature_names())
+        
+        top_feats = pd.DataFrame(df.sum(numeric_only=True).sort_values()).tail(20)
+        top_feats.columns = ['idf_score']
+        top_feats.plot(kind='bar')
+        plt.show()
+
+
     
     def plot_confusion_matrix(self, y_true, y_pred, classes, name, normalize=False, title=None, cmap='bwr'):
     
@@ -210,16 +228,16 @@ class NLPClassifier():
         self.load_data()
         self.isolate_datasets()
         self.fit_tfidf_flu_cv19(
-            label='flu_intention__tfidf_tokens',
-            root_form='tweet_tokens_formal',
+            label='flu_intention__tfidf_lemmas',
+            root_form='tweet_lemmas_formal',
             flu_df=self.flu_df_intention
         )
-        self.fit_SGD(
-            data_label='flu_intention__tfidf_tokens',
-            conf_mat_lbl='flu_intention_tfidf_tokens',
-            class_labels=['No', 'Yes, Intend']
-        )
-        self.covid_predictions['flu_intention__tfidf_tokens_SGD'].to_csv('a.csv')
+        # self.fit_SGD(
+        #     data_label='flu_intention__tfidf_tokens',
+        #     conf_mat_lbl='flu_intention_tfidf_tokens',
+        #     class_labels=['No', 'Yes, Intend']
+        # )
+        self.explore_cv19_tfidf(root_form='tweet_lemmas_formal')
 
 def main():
     """ Runs model training processes and saves errors in /reports/figures.

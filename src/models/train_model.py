@@ -11,6 +11,7 @@ import shutil
 import re
 import os
 import io
+import ast
 import pandas as pd
 import numpy as np
 
@@ -21,6 +22,7 @@ import preprocessor as p
 from nltk.corpus import stopwords
 import spacy
 import nltk
+from nltk.corpus import stopwords
 from nltk.tokenize import TweetTokenizer
 import string
 from nltk import wordpunct_tokenize
@@ -34,20 +36,22 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from tqdm import tqdm
+from gensim.models import Doc2Vec
+import gensim
+from gensim.models.doc2vec import TaggedDocument
+import multiprocessing
+
+cores = multiprocessing.cpu_count()
+tqdm.pandas(desc="progress-bar")
 
 BUCKET = 'tweets-1301' # s3 bucket name
 
 class NLPClassifier():
 
     '''Loads up preprocessed tweet csv data.
-    Trains several models to predict/classify tweets' intention or lack therof to get a covid-19 vaccine, plus
-    their general sentiment on it. Uses a tagged dataset (see build_features.py for link) which is regarding
-    the flu (seasonal influenza) vaccine.
     
-    Approaches include first encoding the language using either (A) TF-IDF or (B) Doc2Vec, limiting/fitting the vocab of
-    the classifier to the COVID-19 tweets given the naturally different language/new terms. Then, training a SVM on the
-    vectorized features and comparing performance on classifying the Flu tweets (less important) and how it performs
-    with the new COVID-19 tweets (the goal, but difficult to define error metrics).
+    [tbd].
     '''
     
     def __init__(self, logger):
@@ -122,13 +126,62 @@ class NLPClassifier():
         tfidf_matrix = vect.fit_transform(X_covid)
         df = pd.DataFrame(tfidf_matrix.toarray(), columns = vect.get_feature_names())
         
-        top_feats = pd.DataFrame(df.sum(numeric_only=True).sort_values()).tail(20)
+        top_feats = pd.DataFrame(df.sum(numeric_only=True).sort_values()).tail(30)
         top_feats.columns = ['idf_score']
         top_feats.plot(kind='bar')
         plt.show()
 
+    def fit_doc2vec_cv19(self, label, root_form):
 
-    
+        '''Fits doc2vec word embedding model on covid-19 vaccine tweets. Requires specification
+        of which root form of the words to use'''
+
+        df = self.features_cv19_df[[root_form, 'tweet_id']]
+        df['sent'] = df[root_form].apply(lambda x: ast.literal_eval(x))
+        df['sent'] = df['sent'].str.join(' ')
+        df['tag'] = 'covid19_vac_tweet'
+
+        def prep_text(text):
+            tokens = []
+            for t in text.split(' '):
+                tokens.append(t)
+            return tokens
+
+        # tag document
+        train_tagged = df.apply(
+            lambda x: TaggedDocument(words=prep_text(x['sent']), tags=[x.tag]), axis=1)
+
+        # build vocabulary
+        model_dbow = Doc2Vec(dm=0, vector_size=200, negative=5, hs=0, min_count=2, sample=0, workers=cores)
+        model_dmm = Doc2Vec(dm=1, dm_mean=1, vector_size=200, window=10, negative=5, min_count=1, workers=cores, alpha=0.065, min_alpha=0.065)
+        model_dbow.build_vocab([x for x in tqdm(train_tagged.values)])
+        model_dmm.build_vocab([x for x in tqdm(train_tagged.values)])
+
+        # train embeddings
+        for epoch in range(30):
+            model_dbow.train(utils.shuffle([x for x in tqdm(train_tagged.values)]), total_examples=len(train_tagged.values), epochs=1)
+            model_dbow.alpha -= 0.002
+            model_dbow.min_alpha = model_dbow.alpha
+        for epoch in range(30):
+            model_dmm.train(utils.shuffle([x for x in tqdm(train_tagged.values)]), total_examples=len(train_tagged.values), epochs=1)
+            model_dmm.alpha -= 0.002
+            model_dmm.min_alpha = model_dmm.alpha
+
+        # infer the word vectors using trained model
+        def vec_for_learning(model, tagged_docs):
+            sents = tagged_docs.values
+            targets, vects = zip(*[(doc.tags[0], model.infer_vector(doc.words, steps=20)) for doc in sents])
+            return targets, vects
+
+        lbl_train, X_train = vec_for_learning(model_dbow, train_tagged)
+        print(model_dbow.similarity('trump', 'russia'))
+        print(model_dbow.similarity('trump', 'fauci'))
+        print(model_dbow.similarity('covid', 'coronavirus'))
+
+        
+        
+
+
     def plot_confusion_matrix(self, y_true, y_pred, classes, name, normalize=False, title=None, cmap='bwr'):
     
         """
@@ -237,7 +290,11 @@ class NLPClassifier():
         #     conf_mat_lbl='flu_intention_tfidf_tokens',
         #     class_labels=['No', 'Yes, Intend']
         # )
-        self.explore_cv19_tfidf(root_form='tweet_lemmas_formal')
+        #self.explore_cv19_tfidf(root_form='tweet_lemmas_formal')
+        self.fit_doc2vec_cv19(
+            root_form='tweet_tokens_formal',
+            label='covid_vaccines__doc2vec_tokens'
+        )
 
 def main():
     """ Runs model training processes and saves errors in /reports/figures.

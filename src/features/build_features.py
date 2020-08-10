@@ -82,7 +82,7 @@ class TrainingDataMaker():
         engine = create_engine(db_string)
 
         self.raw_cv19_df = pd.read_sql(
-            "SELECT * FROM twitter.streamed_vaccine LIMIT 10000",
+            "SELECT * FROM twitter.streamed_vaccine LIMIT 100000",
             con=engine
         )
 
@@ -235,7 +235,7 @@ class TrainingDataMaker():
         self.clean_data()
         #self.training_clean_df = self.preprocess_tweet_df(self.raw_df, 'tweet_text', lemma=True)
         #self.training_clean_df.to_csv(self.processed_data_path.joinpath('training_nlp.csv'))
-        self.cv19_clean_df = self.preprocess_tweet_df(self.raw_cv19_df, 'tweet_text', lemma=True)
+        self.cv19_clean_df = self.preprocess_tweet_df(self.raw_cv19_df, 'tweet_text', lemma=False)
         self.cv19_clean_df.to_csv(self.processed_data_path.joinpath('cv19_nlp.csv'))
 
 

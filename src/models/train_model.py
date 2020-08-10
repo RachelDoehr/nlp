@@ -42,6 +42,8 @@ import gensim
 from gensim.models.doc2vec import TaggedDocument
 import multiprocessing
 
+from sklearn.manifold import TSNE
+
 cores = multiprocessing.cpu_count()
 tqdm.pandas(desc="progress-bar")
 
@@ -60,6 +62,7 @@ class NLPClassifier():
         sns.set(style="white")
         self.graphics_path = Path(__file__).resolve().parents[2].joinpath('reports').resolve().joinpath('figures').resolve()
         self.data_path = Path(__file__).resolve().parents[2].joinpath('data').resolve().joinpath('processed').resolve()
+        self.models_path = Path(__file__).resolve().parents[2].joinpath('models').resolve()
 
         self.vectors = {}
 
@@ -173,13 +176,68 @@ class NLPClassifier():
             targets, vects = zip(*[(doc.tags[0], model.infer_vector(doc.words, steps=20)) for doc in sents])
             return targets, vects
 
-        lbl_train, X_train = vec_for_learning(model_dbow, train_tagged)
-        print(model_dbow.similarity('trump', 'russia'))
-        print(model_dbow.similarity('trump', 'fauci'))
-        print(model_dbow.similarity('covid', 'coronavirus'))
+        model_dmm.save(self.models_path.joinpath('model_dmm.model').resolve())
+        model_dbow.save(self.models_path.joinpath('model_dbow.model').resolve())
+        
+        lbl_train_dbow, X_train_dbow = vec_for_learning(model_dbow, train_tagged)
+        lbl_train_dmm, X_train_dmm = vec_for_learning(model_dmm, train_tagged)
 
+        # save embedded vectors locally for ease
+        pd.DataFrame(X_train_dbow).to_csv(self.models_path.joinpath('embedded_vectors_dbow.csv').resolve())
+        pd.DataFrame(X_train_dmm).to_csv(self.models_path.joinpath('embedded_vectors_dmm.csv').resolve())
+
+        self.logger.info('fit word2vec model and word vectors for covid-19 vaccine tweets, saved locally...')
+    
+    def tsne_on_vectors(self, mdl, keys):
+
+        '''Loads trained models and word embeddings for covid-19 vaccine tweets and prior to
+        doing any visualization.'''
+
+        model = Doc2Vec.load(mdl)
+
+        # get the embeddings and embeddings for the most similar words
+        self.embedding_clusters = []
+        self.word_clusters = []
+        for word in keys:
+            embeddings = []
+            words = []
+            for similar_word, _ in model.most_similar(word, topn=10):
+                words.append(similar_word)
+                embeddings.append(model[similar_word])
+            self.embedding_clusters.append(embeddings)
+            self.word_clusters.append(words)
         
+        # run t-sne
+        self.embedding_clusters = np.array(self.embedding_clusters)
+        n, m, k = self.embedding_clusters.shape
+        tsne_model_en_2d = TSNE(perplexity=15, n_components=2, init='pca', n_iter=3500, random_state=42)
+        self.embeddings_en_2d = np.array(tsne_model_en_2d.fit_transform(self.embedding_clusters.reshape(n * m, k))).reshape(n, m, 2)
         
+        self.logger.info('selected interesting word vectors and ran t-sne...')
+
+    def visualize_tsne_embeddings(self, keys):
+
+        '''Creates visualization of the learned tnse + word2vec clusters'''
+
+        def tsne_plot_similar_words(title, labels, embedding_clusters, word_clusters, filename=None):
+
+            plt.figure(figsize=(16, 9))
+            colors = cm.rainbow(np.linspace(0, 1, len(labels)))
+            for label, embeddings, words, color in zip(labels, embedding_clusters, word_clusters, colors):
+                x = embeddings[:, 0]
+                y = embeddings[:, 1]
+                plt.scatter(x, y, c=color, alpha=0.7, label=label)
+                for i, word in enumerate(words):
+                    plt.annotate(word, alpha=0.5, xy=(x[i], y[i]), xytext=(5, 2),
+                                textcoords='offset points', ha='right', va='bottom', size=8)
+            plt.legend(loc=4)
+            plt.title(title)
+            plt.grid(True)
+            if filename:
+                plt.savefig(self.graphics_path.joinpath(filename).resolve(), format='png', dpi=150, bbox_inches='tight')
+            plt.show()
+        
+        tsne_plot_similar_words('Similar words from COVID-19 Vaccine Tweets', keys, self.embeddings_en_2d, self.word_clusters, 'similar_words.png')
 
 
     def plot_confusion_matrix(self, y_true, y_pred, classes, name, normalize=False, title=None, cmap='bwr'):
@@ -282,7 +340,7 @@ class NLPClassifier():
         self.isolate_datasets()
         self.fit_tfidf_flu_cv19(
             label='flu_intention__tfidf_lemmas',
-            root_form='tweet_lemmas_formal',
+            root_form='tweet_tokens_formal',
             flu_df=self.flu_df_intention
         )
         # self.fit_SGD(
@@ -295,6 +353,14 @@ class NLPClassifier():
             root_form='tweet_tokens_formal',
             label='covid_vaccines__doc2vec_tokens'
         )
+        self.tsne_on_vectors(
+            mdl='model_dbow',
+            keys=['vaccine', 'Trump', 'Fauci', 'safety', 'microchip', 'volunteer', 'rush', 'Biden']
+        )
+        self.visualize_tsne_embeddings(
+            keys=['vaccine', 'Trump', 'Fauci', 'safety', 'microchip', 'volunteer', 'rush', 'Biden']
+        )
+        
 
 def main():
     """ Runs model training processes and saves errors in /reports/figures.

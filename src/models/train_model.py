@@ -61,6 +61,7 @@ class NLPClassifier():
 
         self.logger = logger
         sns.set(style="white")
+        self.s3_client = boto3.client('s3')
         self.graphics_path = Path(__file__).resolve().parents[2].joinpath('reports').resolve().joinpath('figures').resolve()
         self.data_path = Path(__file__).resolve().parents[2].joinpath('data').resolve().joinpath('processed').resolve()
         self.models_path = Path(__file__).resolve().parents[2].joinpath('models').resolve()
@@ -160,7 +161,7 @@ class NLPClassifier():
         model_dmm.build_vocab([x for x in tqdm(train_tagged.values)])
 
         # train embeddings
-        for epoch in range(30):
+        for epoch in range(2):
             model_dmm.train(utils.shuffle([x for x in tqdm(train_tagged.values)]), total_examples=len(train_tagged.values), epochs=1)
             model_dmm.alpha -= 0.002
             model_dmm.min_alpha = model_dmm.alpha
@@ -171,11 +172,14 @@ class NLPClassifier():
             targets, vects = zip(*[(doc.tags[0], model.infer_vector(doc.words, steps=20)) for doc in sents])
             return targets, vects
 
-        model_dmm.save('model_dmm.model')
+        # upload gzip'd model to s3
+        model_dmm.save('model_dmm.pkl.gz')
+        key = 'model_dmm.pkl.gz'
 
-        #lbl_train_dmm, X_train_dmm = vec_for_learning(model_dmm, train_tagged)
+        #s3_obj = io.BytesIO('model_dmm.pkl.gz')
+        self.s3_client.put_object(Bucket=BUCKET, Body='model_dmm.pkl.gz', Key=key)
 
-        self.logger.info('fit word2vec model for covid-19 vaccine tweets, saved locally...')
+        self.logger.info('fit word2vec model for covid-19 vaccine tweets, saved to s3...')
     
     def tsne_on_vectors(self, mdl, keys):
 
@@ -227,7 +231,6 @@ class NLPClassifier():
             plt.show()
         
         tsne_plot_similar_words('Similar words from COVID-19 Vaccine Tweets', keys, self.embeddings_en_2d, self.word_clusters, 'similar_words.png')
-
 
     def plot_confusion_matrix(self, y_true, y_pred, classes, name, normalize=False, title=None, cmap='bwr'):
     

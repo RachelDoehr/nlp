@@ -17,6 +17,7 @@ import numpy as np
 
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 import preprocessor as p
 from nltk.corpus import stopwords
@@ -142,7 +143,7 @@ class NLPClassifier():
         df = self.features_cv19_df[[root_form, 'tweet_id']]
         df['sent'] = df[root_form].apply(lambda x: ast.literal_eval(x))
         df['sent'] = df['sent'].str.join(' ')
-        df['tag'] = 'covid19_vac_tweet'
+        df['tag'] = str(df.tweet_id)
 
         def prep_text(text):
             tokens = []
@@ -155,16 +156,10 @@ class NLPClassifier():
             lambda x: TaggedDocument(words=prep_text(x['sent']), tags=[x.tag]), axis=1)
 
         # build vocabulary
-        model_dbow = Doc2Vec(dm=0, vector_size=200, negative=5, hs=0, min_count=2, sample=0, workers=cores)
         model_dmm = Doc2Vec(dm=1, dm_mean=1, vector_size=200, window=10, negative=5, min_count=1, workers=cores, alpha=0.065, min_alpha=0.065)
-        model_dbow.build_vocab([x for x in tqdm(train_tagged.values)])
         model_dmm.build_vocab([x for x in tqdm(train_tagged.values)])
 
         # train embeddings
-        for epoch in range(30):
-            model_dbow.train(utils.shuffle([x for x in tqdm(train_tagged.values)]), total_examples=len(train_tagged.values), epochs=1)
-            model_dbow.alpha -= 0.002
-            model_dbow.min_alpha = model_dbow.alpha
         for epoch in range(30):
             model_dmm.train(utils.shuffle([x for x in tqdm(train_tagged.values)]), total_examples=len(train_tagged.values), epochs=1)
             model_dmm.alpha -= 0.002
@@ -176,17 +171,11 @@ class NLPClassifier():
             targets, vects = zip(*[(doc.tags[0], model.infer_vector(doc.words, steps=20)) for doc in sents])
             return targets, vects
 
-        model_dmm.save(self.models_path.joinpath('model_dmm.model').resolve())
-        model_dbow.save(self.models_path.joinpath('model_dbow.model').resolve())
-        
-        lbl_train_dbow, X_train_dbow = vec_for_learning(model_dbow, train_tagged)
-        lbl_train_dmm, X_train_dmm = vec_for_learning(model_dmm, train_tagged)
+        model_dmm.save('model_dmm.model')
 
-        # save embedded vectors locally for ease
-        pd.DataFrame(X_train_dbow).to_csv(self.models_path.joinpath('embedded_vectors_dbow.csv').resolve())
-        pd.DataFrame(X_train_dmm).to_csv(self.models_path.joinpath('embedded_vectors_dmm.csv').resolve())
+        #lbl_train_dmm, X_train_dmm = vec_for_learning(model_dmm, train_tagged)
 
-        self.logger.info('fit word2vec model and word vectors for covid-19 vaccine tweets, saved locally...')
+        self.logger.info('fit word2vec model for covid-19 vaccine tweets, saved locally...')
     
     def tsne_on_vectors(self, mdl, keys):
 
@@ -201,7 +190,7 @@ class NLPClassifier():
         for word in keys:
             embeddings = []
             words = []
-            for similar_word, _ in model.most_similar(word, topn=10):
+            for similar_word, _ in model.most_similar(word, topn=30):
                 words.append(similar_word)
                 embeddings.append(model[similar_word])
             self.embedding_clusters.append(embeddings)
@@ -210,7 +199,7 @@ class NLPClassifier():
         # run t-sne
         self.embedding_clusters = np.array(self.embedding_clusters)
         n, m, k = self.embedding_clusters.shape
-        tsne_model_en_2d = TSNE(perplexity=15, n_components=2, init='pca', n_iter=3500, random_state=42)
+        tsne_model_en_2d = TSNE(perplexity=55, n_components=2, init='pca', n_iter=3500, random_state=42)
         self.embeddings_en_2d = np.array(tsne_model_en_2d.fit_transform(self.embedding_clusters.reshape(n * m, k))).reshape(n, m, 2)
         
         self.logger.info('selected interesting word vectors and ran t-sne...')
@@ -349,18 +338,21 @@ class NLPClassifier():
         #     class_labels=['No', 'Yes, Intend']
         # )
         #self.explore_cv19_tfidf(root_form='tweet_lemmas_formal')
+        # self.fit_doc2vec_cv19(
+        #     root_form='tweet_tokens_formal',
+        #     label='covid_vaccines__doc2vec_tokens'
+        # )
         self.fit_doc2vec_cv19(
-            root_form='tweet_tokens_formal',
-            label='covid_vaccines__doc2vec_tokens'
+            label='dmm_covid.model',
+            root_form='tweet_tokens_formal'
         )
         self.tsne_on_vectors(
-            mdl='model_dbow',
-            keys=['vaccine', 'Trump', 'Fauci', 'safety', 'microchip', 'volunteer', 'rush', 'Biden']
+            mdl='model_dmm.model',
+            keys=['trump', 'fauci', 'safety', 'microchip', 'volunteer', 'rush', 'biden']
         )
         self.visualize_tsne_embeddings(
-            keys=['vaccine', 'Trump', 'Fauci', 'safety', 'microchip', 'volunteer', 'rush', 'Biden']
+            keys=['trump', 'fauci', 'safety', 'microchip', 'volunteer', 'rush', 'biden']
         )
-        
 
 def main():
     """ Runs model training processes and saves errors in /reports/figures.

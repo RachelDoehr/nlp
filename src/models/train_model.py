@@ -44,6 +44,7 @@ from gensim.models.doc2vec import TaggedDocument
 import multiprocessing
 
 from sklearn.manifold import TSNE
+import umap
 
 cores = multiprocessing.cpu_count()
 tqdm.pandas(desc="progress-bar")
@@ -161,7 +162,7 @@ class NLPClassifier():
         model_dmm.build_vocab([x for x in tqdm(train_tagged.values)])
 
         # train embeddings
-        for epoch in range(2):
+        for epoch in range(30):
             model_dmm.train(utils.shuffle([x for x in tqdm(train_tagged.values)]), total_examples=len(train_tagged.values), epochs=1)
             model_dmm.alpha -= 0.002
             model_dmm.min_alpha = model_dmm.alpha
@@ -176,12 +177,11 @@ class NLPClassifier():
         model_dmm.save('model_dmm.pkl.gz')
         key = 'model_dmm.pkl.gz'
 
-        #s3_obj = io.BytesIO('model_dmm.pkl.gz')
         self.s3_client.put_object(Bucket=BUCKET, Body='model_dmm.pkl.gz', Key=key)
 
         self.logger.info('fit word2vec model for covid-19 vaccine tweets, saved to s3...')
     
-    def tsne_on_vectors(self, mdl, keys):
+    def umap_on_vectors(self, mdl, keys):
 
         '''Loads trained models and word embeddings for covid-19 vaccine tweets and prior to
         doing any visualization.'''
@@ -194,25 +194,27 @@ class NLPClassifier():
         for word in keys:
             embeddings = []
             words = []
-            for similar_word, _ in model.most_similar(word, topn=30):
+            for similar_word, _ in model.most_similar(word, topn=25):
                 words.append(similar_word)
                 embeddings.append(model[similar_word])
             self.embedding_clusters.append(embeddings)
             self.word_clusters.append(words)
         
-        # run t-sne
+        # run umap
         self.embedding_clusters = np.array(self.embedding_clusters)
         n, m, k = self.embedding_clusters.shape
-        tsne_model_en_2d = TSNE(perplexity=55, n_components=2, init='pca', n_iter=3500, random_state=42)
-        self.embeddings_en_2d = np.array(tsne_model_en_2d.fit_transform(self.embedding_clusters.reshape(n * m, k))).reshape(n, m, 2)
-        
-        self.logger.info('selected interesting word vectors and ran t-sne...')
 
-    def visualize_tsne_embeddings(self, keys):
+        self.umap_model_en_2d = umap.UMAP(n_neighbors=10, random_state=42)
+
+        self.embeddings_en_2d_umap = np.array(self.umap_model_en_2d.fit_transform(self.embedding_clusters.reshape(n * m, k))).reshape(n, m, 2)
+        
+        self.logger.info('selected interesting word vectors and ran umap...')
+
+    def visualize_umap_embeddings(self, keys):
 
         '''Creates visualization of the learned tnse + word2vec clusters'''
 
-        def tsne_plot_similar_words(title, labels, embedding_clusters, word_clusters, filename=None):
+        def umap_plot_similar_words(title, labels, embedding_clusters, word_clusters, filename=None):
 
             plt.figure(figsize=(16, 9))
             colors = cm.rainbow(np.linspace(0, 1, len(labels)))
@@ -221,7 +223,7 @@ class NLPClassifier():
                 y = embeddings[:, 1]
                 plt.scatter(x, y, c=color, alpha=0.7, label=label)
                 for i, word in enumerate(words):
-                    plt.annotate(word, alpha=0.5, xy=(x[i], y[i]), xytext=(5, 2),
+                    plt.annotate(word, alpha=0.8, xy=(x[i], y[i]), xytext=(5, 2),
                                 textcoords='offset points', ha='right', va='bottom', size=8)
             plt.legend(loc=4)
             plt.title(title)
@@ -230,7 +232,62 @@ class NLPClassifier():
                 plt.savefig(self.graphics_path.joinpath(filename).resolve(), format='png', dpi=150, bbox_inches='tight')
             plt.show()
         
-        tsne_plot_similar_words('Similar words from COVID-19 Vaccine Tweets', keys, self.embeddings_en_2d, self.word_clusters, 'similar_words.png')
+        umap_plot_similar_words('Similar words from COVID-19 Vaccine Tweets', keys, self.embeddings_en_2d_umap, self.word_clusters, 'similar_words.png')
+
+    def infer_new_vectors_umap(self, df_in, mdl, root_form):
+
+        '''Infers doc2vec vectors on new tweets, transforms using UMAP'''
+
+        model = Doc2Vec.load(mdl)
+
+        df = df_in[[root_form, 'tweet_id']]
+        df['sent'] = df[root_form].apply(lambda x: ast.literal_eval(x))
+        df['sent'] = df['sent'].str.join(' ')
+        df['tag'] = str(df.tweet_id)
+
+        def prep_text(text):
+            tokens = []
+            for t in text.split(' '):
+                tokens.append(t)
+            return tokens
+
+        # tag document
+        tweets_tagged = df.apply(
+            lambda x: TaggedDocument(words=prep_text(x['sent']), tags=[x.tag]), axis=1)
+        
+        # infer the word vectors using trained model
+        def vec_for_learning(model_in, tagged_docs):
+            sents = tagged_docs.values
+            targets, vects = zip(*[(doc.tags[0], model_in.infer_vector(doc.words, steps=20)) for doc in sents])
+            return targets, vects
+        
+        tag_ids, embedded_tweets = vec_for_learning(model, tweets_tagged)
+        self.transformed_new_tweets_umap = self.umap_model_en_2d.transform(embedded_tweets)
+        self.logger.info('inferred new word vectors on incoming tweets, applied dimensionality reduction...')
+
+    def visualize_new_tweets(self, keys):
+
+        '''Creates visualization of the inferred vectors of new tweets, overlays on top of priors.'''
+
+        plt.figure(figsize=(16, 9))
+        colors = cm.rainbow(np.linspace(0, 1, len(keys)))
+        for label, embeddings, words, color in zip(keys, self.embeddings_en_2d_umap, self.word_clusters, colors):
+            x = embeddings[:, 0]
+            y = embeddings[:, 1]
+            plt.scatter(x, y, c=color, alpha=0.7, label=label)
+            for i, word in enumerate(words):
+                plt.annotate(word, alpha=0.8, xy=(x[i], y[i]), xytext=(5, 2),
+                            textcoords='offset points', ha='right', va='bottom', size=8)
+        # overlay new tweets
+        plt.plot(self.transformed_new_tweets_umap[:, 0], self.transformed_new_tweets_umap[:, 1], 'o', color='gray')
+
+        plt.legend(loc=4)
+        plt.title('Tweet Embeddings: COVID-19 Vaccine')
+        plt.grid(True)
+
+        plt.savefig(self.graphics_path.joinpath('new_tweets_visualized').resolve(), format='png', dpi=150, bbox_inches='tight')
+        plt.show()
+
 
     def plot_confusion_matrix(self, y_true, y_pred, classes, name, normalize=False, title=None, cmap='bwr'):
     
@@ -330,11 +387,11 @@ class NLPClassifier():
     
         self.load_data()
         self.isolate_datasets()
-        self.fit_tfidf_flu_cv19(
-            label='flu_intention__tfidf_lemmas',
-            root_form='tweet_tokens_formal',
-            flu_df=self.flu_df_intention
-        )
+        # self.fit_tfidf_flu_cv19(
+        #     label='flu_intention__tfidf_lemmas',
+        #     root_form='tweet_tokens_formal',
+        #     flu_df=self.flu_df_intention
+        # )
         # self.fit_SGD(
         #     data_label='flu_intention__tfidf_tokens',
         #     conf_mat_lbl='flu_intention_tfidf_tokens',
@@ -345,16 +402,24 @@ class NLPClassifier():
         #     root_form='tweet_tokens_formal',
         #     label='covid_vaccines__doc2vec_tokens'
         # )
-        self.fit_doc2vec_cv19(
-            label='dmm_covid.model',
+        # self.fit_doc2vec_cv19(
+        #     label='dmm_covid.model',
+        #     root_form='tweet_tokens_formal'
+        # )
+        self.umap_on_vectors(
+            mdl='model_dmm.pkl.gz',
+            keys=['trump', 'fauci', 'safety', 'microchip', 'russia', 'rush', 'biden']
+        )
+        self.visualize_umap_embeddings(
+            keys=['trump', 'fauci', 'safety', 'microchip', 'russia', 'rush', 'biden']
+        )
+        self.infer_new_vectors_umap(
+            mdl='model_dmm.pkl.gz',
+            df_in=self.features_cv19_df.iloc[0:100, :],
             root_form='tweet_tokens_formal'
         )
-        self.tsne_on_vectors(
-            mdl='model_dmm.model',
-            keys=['trump', 'fauci', 'safety', 'microchip', 'volunteer', 'rush', 'biden']
-        )
-        self.visualize_tsne_embeddings(
-            keys=['trump', 'fauci', 'safety', 'microchip', 'volunteer', 'rush', 'biden']
+        self.visualize_new_tweets(
+            keys=['trump', 'fauci', 'safety', 'microchip', 'russia', 'rush', 'biden']
         )
 
 def main():

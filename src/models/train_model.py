@@ -68,7 +68,6 @@ class NLPClassifier():
         self.models_path = Path(__file__).resolve().parents[2].joinpath('models').resolve()
 
         self.vectors = {}
-
         self.covid_predictions = {}
 
     def load_data(self):
@@ -78,71 +77,13 @@ class NLPClassifier():
         self.features_train_df = pd.read_csv(self.data_path.joinpath('training_nlp.csv'))
         self.features_cv19_df = pd.read_csv(self.data_path.joinpath('cv19_nlp.csv'))
         self.logger.info('loaded data...')
-    
-    def isolate_datasets(self):
 
-        '''Creates 2 clean copies of the flu data given that some of the tweets labels are NA'''
+    def fit_doc2vec(self, label, root_form, df_train):
 
-        self.flu_df_intention = self.features_train_df[self.features_train_df.FLU_vac_intend_to_receive.isin(['yes', 'no'])]
-        self.flu_df_intention['target'] = self.flu_df_intention['FLU_vac_intend_to_receive']
-
-        self.flu_df_sentiment = self.features_train_df[self.features_train_df.FLU_vac_sentiment.isin(['positive', 'negative'])]
-        self.flu_df_sentiment['target'] = self.flu_df_sentiment['FLU_vac_sentiment']
-
-        self.logger.info('created cleaned copies of flu data for training...')
-    
-    def fit_tfidf_flu_cv19(self, label, root_form, flu_df):
-
-        '''Fits tf-idf vectorizer on the covid-19 data and transforms the flu data. Requires specification
-        of which flu target (sentiment or intention to receive) to use, and lemma/stem/token form of X
-        
-        flu_df: [self.flu_df_intention OR self.flu_df_sentiment]
-        root_form: ['tweet_tokens_formal' OR 'tweet_stems_formal' OR 'tweet_lemmas_formal']'''
-        
-        # flu data
-        X_flu = flu_df[root_form].str.join('')
-        y_flu = flu_df.target
-        
-        X_train_flu, X_test_flu, y_train_flu, y_test_flu = train_test_split(X_flu, y_flu, test_size=0.3, random_state=42, shuffle=True)
-
-        tfidf_vectorizer=TfidfVectorizer(use_idf=True, ngram_range=(1, 1), max_features=100)
-        X_covid =  self.features_cv19_df[root_form].str.join('')
-
-        fitted_tfidf_vectorizer = tfidf_vectorizer.fit(X_train_flu) #X_covid
-
-        self.vectors[label] = {
-            'root_form': root_form,
-            'train_test_flu': [X_train_flu, X_test_flu, y_train_flu, y_test_flu],
-            'X_covid': X_covid,
-            'fitted_tfidf_vectorizor': fitted_tfidf_vectorizer,
-            'fitted_covid_idf_matrix': tfidf_vectorizer.fit_transform(X_covid),
-            'transformed_flu_vectors_train': fitted_tfidf_vectorizer.transform(X_train_flu), # for training
-            'transformed_flu_vectors_test': fitted_tfidf_vectorizer.transform(X_test_flu), # for tuning
-            'transformed_vectors_covid': fitted_tfidf_vectorizer.transform(X_covid)
-        }
-        self.logger.info('fit tf-idf model and stored vectors...')
-    
-    def explore_cv19_tfidf(self, root_form):
-
-        '''Visualize the top terms in the doc fitted in tf-idf'''
-
-        vect = TfidfVectorizer(use_idf=True, ngram_range=(1, 1), max_features=200, stop_words='english')
-        X_covid =  self.features_cv19_df[root_form].str.join('')
-
-        tfidf_matrix = vect.fit_transform(X_covid)
-        df = pd.DataFrame(tfidf_matrix.toarray(), columns = vect.get_feature_names())
-        
-        top_feats = pd.DataFrame(df.sum(numeric_only=True).sort_values()).tail(30)
-        top_feats.columns = ['idf_score']
-        top_feats.plot(kind='bar')
-        plt.show()
-
-    def fit_doc2vec_cv19(self, label, root_form):
-
-        '''Fits doc2vec word embedding model on covid-19 vaccine tweets. Requires specification
+        '''Fits doc2vec word embedding model on vaccine tweets. Requires specification
         of which root form of the words to use'''
 
-        df = self.features_cv19_df[[root_form, 'tweet_id']]
+        df = df_train[[root_form, 'tweet_id']]
         df['sent'] = df[root_form].apply(lambda x: ast.literal_eval(x))
         df['sent'] = df['sent'].str.join(' ')
         df['tag'] = str(df.tweet_id)
@@ -174,10 +115,10 @@ class NLPClassifier():
             return targets, vects
 
         # upload gzip'd model to s3
-        model_dmm.save('model_dmm.pkl.gz')
-        key = 'model_dmm.pkl.gz'
+        model_dmm.save(label+'.pkl.gz')
+        key = label+'.pkl.gz'
 
-        self.s3_client.put_object(Bucket=BUCKET, Body='model_dmm.pkl.gz', Key=key)
+        self.s3_client.put_object(Bucket=BUCKET, Body='model_dmm_covid.pkl.gz', Key=key)
 
         self.logger.info('fit word2vec model for covid-19 vaccine tweets, saved to s3...')
     
@@ -210,9 +151,9 @@ class NLPClassifier():
         
         self.logger.info('selected interesting word vectors and ran umap...')
 
-    def visualize_umap_embeddings(self, keys):
+    def visualize_umap_embeddings(self, keys, fname):
 
-        '''Creates visualization of the learned tnse + word2vec clusters'''
+        '''Creates visualization of the learned umap + word2vec clusters'''
 
         def umap_plot_similar_words(title, labels, embedding_clusters, word_clusters, filename=None):
 
@@ -232,194 +173,28 @@ class NLPClassifier():
                 plt.savefig(self.graphics_path.joinpath(filename).resolve(), format='png', dpi=150, bbox_inches='tight')
             plt.show()
         
-        umap_plot_similar_words('Similar words from COVID-19 Vaccine Tweets', keys, self.embeddings_en_2d_umap, self.word_clusters, 'similar_words.png')
-
-    def infer_new_vectors_umap(self, df_in, mdl, root_form):
-
-        '''Infers doc2vec vectors on new tweets, transforms using UMAP'''
-
-        model = Doc2Vec.load(mdl)
-
-        df = df_in[[root_form, 'tweet_id']]
-        df['sent'] = df[root_form].apply(lambda x: ast.literal_eval(x))
-        df['sent'] = df['sent'].str.join(' ')
-        df['tag'] = str(df.tweet_id)
-
-        def prep_text(text):
-            tokens = []
-            for t in text.split(' '):
-                tokens.append(t)
-            return tokens
-
-        # tag document
-        tweets_tagged = df.apply(
-            lambda x: TaggedDocument(words=prep_text(x['sent']), tags=[x.tag]), axis=1)
-        
-        # infer the word vectors using trained model
-        def vec_for_learning(model_in, tagged_docs):
-            sents = tagged_docs.values
-            targets, vects = zip(*[(doc.tags[0], model_in.infer_vector(doc.words, steps=20)) for doc in sents])
-            return targets, vects
-        
-        tag_ids, embedded_tweets = vec_for_learning(model, tweets_tagged)
-        self.transformed_new_tweets_umap = self.umap_model_en_2d.transform(embedded_tweets)
-        self.logger.info('inferred new word vectors on incoming tweets, applied dimensionality reduction...')
-
-    def visualize_new_tweets(self, keys):
-
-        '''Creates visualization of the inferred vectors of new tweets, overlays on top of priors.'''
-
-        plt.figure(figsize=(16, 9))
-        colors = cm.rainbow(np.linspace(0, 1, len(keys)))
-        for label, embeddings, words, color in zip(keys, self.embeddings_en_2d_umap, self.word_clusters, colors):
-            x = embeddings[:, 0]
-            y = embeddings[:, 1]
-            plt.scatter(x, y, c=color, alpha=0.7, label=label)
-            for i, word in enumerate(words):
-                plt.annotate(word, alpha=0.8, xy=(x[i], y[i]), xytext=(5, 2),
-                            textcoords='offset points', ha='right', va='bottom', size=8)
-        # overlay new tweets
-        plt.plot(self.transformed_new_tweets_umap[:, 0], self.transformed_new_tweets_umap[:, 1], 'o', color='gray')
-
-        plt.legend(loc=4)
-        plt.title('Tweet Embeddings: COVID-19 Vaccine')
-        plt.grid(True)
-
-        plt.savefig(self.graphics_path.joinpath('new_tweets_visualized').resolve(), format='png', dpi=150, bbox_inches='tight')
-        plt.show()
-
-
-    def plot_confusion_matrix(self, y_true, y_pred, classes, name, normalize=False, title=None, cmap='bwr'):
+        umap_plot_similar_words('Similar words from COVID-19 Vaccine Tweets', keys, self.embeddings_en_2d_umap, self.word_clusters, fname)
     
-        """
-        Plots the confusion matrix. Normalization can be applied by setting `normalize=True`.
-        """
-
-        if not title:
-            if normalize:
-                title = 'Normalized confusion matrix'
-            else:
-                title = 'Confusion matrix, without normalization'
-
-        # Compute confusion matrix
-        cm = confusion_matrix(y_true, y_pred)
-
-        if normalize:
-            cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-
-        fig, ax = plt.subplots(dpi=80)
-        im = ax.imshow(cm, interpolation='nearest', cmap=cmap)
-        ax.figure.colorbar(im, ax=ax)
-        # Decorations
-        ax.set(xticks=np.arange(cm.shape[1]),
-            yticks=np.arange(cm.shape[0]),
-            xticklabels=classes, yticklabels=classes,
-            title=title,
-            ylabel='True label',
-            xlabel='Predicted label')
-
-        # Rotate the tick labels and set their alignment.
-        plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
-                rotation_mode="anchor")
-
-        # Loop over data dimensions and create text annotations.
-        fmt = '.2f' if normalize else 'd'
-        thresh = cm.max() / 2.
-        for i in range(cm.shape[0]):
-            for j in range(cm.shape[1]):
-                ax.text(j, i, format(cm[i, j], fmt),
-                        ha="center", va="center",
-                        color="white" if cm[i, j] > thresh else "black")
-        fig.tight_layout()
-        pth = Path(self.graphics_path, 'conf_matrix_'+name).with_suffix('.png')
-        plt.savefig(pth)
-        plt.close()
-
-    def fit_SGD(self, data_label, conf_mat_lbl, class_labels):
-
-        '''Trains  SGD classifier on flu vaccine data, uses grid search CV on train/test data.
-        Reports error metrics on the flu target, though less relevant. Generates predictions for covid-19 vac tweets'''
-
-        transformed_flu_vectors_train = self.vectors[data_label]['transformed_flu_vectors_train']
-        y_train_flu = self.vectors[data_label]['train_test_flu'][2]
-        transformed_flu_vectors_test = self.vectors[data_label]['transformed_flu_vectors_test']
-        y_test_flu = self.vectors[data_label]['train_test_flu'][3]
-
-        transformed_vectors_covid = self.vectors[data_label]['transformed_vectors_covid']
-
-        clf = SGDClassifier(random_state=42)
-
-        # use a full grid over all parameters-hinge less for all
-        param_grid = {"max_iter": [1, 5, 10],
-                    "alpha": [0.0001, 0.001, 0.01, 0.1, 1, 10, 100],
-                    "penalty": ["none", "l1", "l2"]}
-
-        grid = GridSearchCV(clf, param_grid, refit=True, verbose=3) 
-
-        # fitting the model for grid search 
-        grid.fit(transformed_flu_vectors_train, y_train_flu) 
-
-        # print best parameter after tuning 
-        print(grid.best_params_) 
-
-        grid_predictions = grid.predict(transformed_flu_vectors_test) 
-
-        # errors for flu 
-        print(classification_report(y_test_flu, grid_predictions, target_names=class_labels)) 
-        print()
-        print('Accuracy score: ', accuracy_score(y_test_flu, grid_predictions, normalize=True))
-
-        kappa = cohen_kappa_score(grid_predictions, y_test_flu, weights='quadratic')
-        print('Kappa score: ', kappa)
-        self.plot_confusion_matrix(
-                y_true=y_test_flu,
-                y_pred=grid_predictions,
-                classes=class_labels,
-                normalize=False,
-                name=conf_mat_lbl,
-                title='Confusion Matrix: Test Set (flu)'
-            )
-
-        self.covid_predictions[data_label+'_SGD'] = pd.DataFrame(grid.predict(transformed_vectors_covid))
-        self.logger.info('trained SGD classifier on flu dataset, errors in /reports/figures...')
-        
     def execute_models(self):
     
         self.load_data()
-        self.isolate_datasets()
-        # self.fit_tfidf_flu_cv19(
-        #     label='flu_intention__tfidf_lemmas',
+        # self.fit_doc2vec(
+        #     label='model_dmm_covid.model',
         #     root_form='tweet_tokens_formal',
-        #     flu_df=self.flu_df_intention
+        #     df_train=self.features_cv19_df
         # )
-        # self.fit_SGD(
-        #     data_label='flu_intention__tfidf_tokens',
-        #     conf_mat_lbl='flu_intention_tfidf_tokens',
-        #     class_labels=['No', 'Yes, Intend']
-        # )
-        #self.explore_cv19_tfidf(root_form='tweet_lemmas_formal')
-        # self.fit_doc2vec_cv19(
+        # self.fit_doc2vec(
+        #     label='model_dmm_flu.model',
         #     root_form='tweet_tokens_formal',
-        #     label='covid_vaccines__doc2vec_tokens'
-        # )
-        # self.fit_doc2vec_cv19(
-        #     label='dmm_covid.model',
-        #     root_form='tweet_tokens_formal'
+        #     df_train=self.features_train_df
         # )
         self.umap_on_vectors(
-            mdl='model_dmm.pkl.gz',
-            keys=['trump', 'fauci', 'safety', 'microchip', 'russia', 'rush', 'biden']
+            mdl='model_dmm_covid.model.pkl.gz',
+            keys=['trump', 'safety', 'russia', 'rush', 'autism']
         )
         self.visualize_umap_embeddings(
-            keys=['trump', 'fauci', 'safety', 'microchip', 'russia', 'rush', 'biden']
-        )
-        self.infer_new_vectors_umap(
-            mdl='model_dmm.pkl.gz',
-            df_in=self.features_cv19_df.iloc[0:100, :],
-            root_form='tweet_tokens_formal'
-        )
-        self.visualize_new_tweets(
-            keys=['trump', 'fauci', 'safety', 'microchip', 'russia', 'rush', 'biden']
+            keys=['trump', 'safety', 'russia', 'rush', 'autism'],
+            fname='similar_words_covid.png'
         )
 
 def main():

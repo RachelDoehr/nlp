@@ -1,17 +1,18 @@
 
-![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/example_logistic_reg.gif?raw=true)
+![Alt Text](https://github.com/RachelDoehr/nlp/blob/master/reports/figures/example_encoding.gif?raw=true)
 
-# Prediction of Cardiac Diagnosis (Heart Disease) Using Patient Data
+# Visualization of COVID-19 Vaccine Tweets Using Doc2Vec
 
- *A demonstration of various classification algorithms on UCI ML dataset*
+ *A demonstration of NLP techniques and a live Dash application*
 
-**COMPARISON OF LOGISTIC REGRESSION, RANDOM FOREST, BOOSTED DECISION TREES, AND A VOTING CLASSIFIER. HYPERPARAMETER TUNING + FEATURE IMPORTANCE ANALYSIS**
+**IMPLEMENTATION OF WORD EMBEDDING ON TWITTER DATASET, DIMENSIONALITY REDUCTION ON LEARNED
+REPRESENTATION USING UMAP. DASH-PLOTLY APPLICATION FOR VISUALIZATION**
 
-> -> Uses the popular UCI heart disease patient dataset available <a href="https://archive.ics.uci.edu/ml/datasets/heart+Disease" target="_blank">here</a>
+> -> Uses <a href="https://developer.twitter.com/en/docs" target="_blank">Twitter API</a> to stream and build a Tweet dataset of ~0.5 million tweets about vaccines, hosted on AWS
 
-> -> Models include logistic regression, random forest, boosted decision trees, and a meta voting classifier of all 3; logistic regression has the highest accuracy by a small margin
+> -> Tweet preprocessing and cleaning done using a combination of Spacy, NLTK, and a module for handling the misc. URLs, emojis, etc. in Twitter data, https://pypi.org/project/tweet-preprocessor/
 
-> -> Post-hoc analysis is done on visualizing the various algorithm's learned decision spaces with respect to how cholesterol and maximum heart rate affect the predicted probability of heart disease
+> -> Post-hoc analysis is done on visualizing the learned representations of select interesting words in the dataset using UMAP to reduce dimensions and Dash/Plotly for creating a live app
 
 ![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/logistic_equation.PNG?raw=true)
 

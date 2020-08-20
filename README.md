@@ -14,13 +14,15 @@ REPRESENTATION USING UMAP. DASH-PLOTLY APPLICATION FOR VISUALIZATION**
 
 > -> Post-hoc analysis is done on visualizing the learned representations of select interesting words in the dataset using UMAP to reduce dimensions and Dash/Plotly for creating a live app
 
-![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/logistic_equation.PNG?raw=true)
+![Alt Text](https://github.com/RachelDoehr/nlp/blob/master/reports/figures/dash_shot1.PNG?raw=true)
 
 **Motivation & Project Summary**
 
-This project is a demonstration of using various binary classification algorithms on the UCI heart disease dataset to predict whether or not a patient is likely to have heart disease. The broad approach taken was to use k-fold cross validation to tune the hyperparameters and select the optimal model for each algorithm examined. Then, the out of sample performance was tested on a separate hold out batch, and accuracy reports for misclassifications generated. Finally, two well-known variables, cholesterol and maximum heart rate, are examined by visualizing each model's learned decision space with respect to possible values of those predictors.
+This project is a demonstration of using Doc2Vec to model a corpus of text, in this case Twitter tweet data. Several methods exist to encode text data, from the simplest count encoders such as a 'bag of words' counting-based approach to more complicated pipelines of neural networks. Doc2Vec is heavily based on Word2Vec, and treats each tweet as its own document. The Distributed Memory model remembers what is missing from the current context, in this case the 'topic' of a tweet, in addition to representing words as word vectors.
 
-The models considered are either semiparametric (Logistic Regression) or entirely non-parametric in nature (Random Forest, AdaBoost + Decision Trees, Voting Classifier). The sample is conveniently evenly balanced across both classes from the start.**The outperformance of the logistic regression relative to random forests and boosted trees implies that 1) the problem is linearly separable in nature, and 2) there are more useful variables in the dataset than noise variables (natural, given the curated nature of this data).**
+After collecting, storing, and cleaning the tweets, the model is trained and saved. Next, a sample of interesting words are predicted (the feature vectors), in addition to the 25 most similar words. Those 200-width representations are then distilled to 2 dimensions using UMAP, and visualized on a Dash Application. **The final product is available [HERE]. The representations largely make intuitive sense, although more data may improve the model, and given Twitter, a fair amount of noise words still make their way in.**
+
+This project started as a demonstration of using a publicly available dataset of seasonal flu vaccine tweets tagged to whether or not the person planned to get a vaccine to predict how likely people were to get the COVID-19 vaccine. However, it ended up useless not due to ML issues but because **manual reading of a random sample of 1,000 of today's tweets revealed 1 pro-vaccine, "I want to take it as soon as I can" tweet out of 1,000.**
 
 > ***ReadMe Table of Contents***
 
@@ -37,7 +39,7 @@ The models considered are either semiparametric (Logistic Regression) or entirel
 
 ### Clone
 
-- Clone this repo to your local machine using `https://github.com/RachelDoehr/heart-disease.git`
+- Clone this repo to your local machine using `https://github.com/RachelDoehr/nlp.git`
 
 ### Setup
 
@@ -49,14 +51,21 @@ The models considered are either semiparametric (Logistic Regression) or entirel
 $ pip install -r requirements.txt
 ```
 
-### Example Run of All Processes
+### Example Run of Processes
 
-- Recommend running train_model as a background process that can be returned to later if running locally. Given the range of hyperparameters tested in cross-validation, significant training time is incurred
-- Estimated runtime will vary by computer, but on an Intel(R) Core(TM) i5-6200U CPU @2.30GHz with 8.00 GB memory, searching all parameters for the models takes ~45 min
+- Note that scripts will not be able to run without the password to the Postgres Tweet DB or a Twitter API key, which are stored locally in environment variables here
+- Runtimes are significant depending on desired number of tweets to download from the Postgres DB, largely due to lemmatization time (plus to a lesser extent Doc2Vec training time)
+- Recommend running the data collection/streaming script as a Cron job that samples Twitter daily and stores to build up sufficient data
 
 ```shell
-$ python /src/data/build_features.py > /logs/features_log.txt
-$ nohup python /src/models/train_model.py > /logs/models_log.txt &
+$ python /src/data/make_dataset.py "streamed_vaccine" "vaccines"
+$ python /src/features/build_features.py
+$ python /src/models/train_model.py
+```
+
+To run the Dash App:
+```shell
+$ nohup python /reports/apps/app.py
 ```
 
 ---

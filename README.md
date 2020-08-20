@@ -27,11 +27,9 @@ This project started as a demonstration of using a publicly available dataset of
 > ***ReadMe Table of Contents***
 
 - INSTALLATION & SETUP
-
-*RESULTS*
-- DATA VISUALIZATION
-- ERROR METRICS
-- FEATURE IMPORTANCE
+- STRATEGY
+- RESULTS
+    - EXAMPLES (APP)
 
 ---
 
@@ -70,11 +68,9 @@ $ nohup python /reports/apps/app.py
 
 ---
 
-## Results
+## Strategy
 
-**Preliminary Data Visualization**
-
-*The dataset consists of 5 continous variables and the remaining 8 are categorical or binary, which are handled appropriately with dummy variables. The target, 0 or 1, represents whether or not a patient has heart disease as indicated by contraction by >50% of any major heart vessel.*
+**Preliminary Data Collection**
 
 We begin by plotting the raw distributions of the continous variables with histograms:
 

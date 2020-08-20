@@ -31,12 +31,7 @@ from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer
 
 from sklearn import utils
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, cohen_kappa_score, plot_confusion_matrix
-from sklearn.svm import SVC 
-from sklearn.model_selection import GridSearchCV 
-from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from tqdm import tqdm
 from gensim.models import Doc2Vec
 import gensim
@@ -55,7 +50,8 @@ class NLPClassifier():
 
     '''Loads up preprocessed tweet csv data.
     
-    [tbd].
+    Trains 2 doc2vec models, one for the flu vaccine tweets data from 'normal' times.
+    Second model is on the current covid vaccine tweets. Stores in s3.
     '''
     
     def __init__(self, logger):
@@ -118,7 +114,7 @@ class NLPClassifier():
         model_dmm.save(label+'.pkl.gz')
         key = label+'.pkl.gz'
 
-        self.s3_client.put_object(Bucket=BUCKET, Body='model_dmm_covid.pkl.gz', Key=key)
+        #self.s3_client.put_object(Bucket=BUCKET, Body='model_dmm_covid.pkl.gz', Key=key)
 
         self.logger.info('fit word2vec model for covid-19 vaccine tweets, saved to s3...')
     
@@ -178,24 +174,32 @@ class NLPClassifier():
     def execute_models(self):
     
         self.load_data()
-        # self.fit_doc2vec(
-        #     label='model_dmm_covid.model',
-        #     root_form='tweet_tokens_formal',
-        #     df_train=self.features_cv19_df
-        # )
+        self.fit_doc2vec(
+            label='model_dmm_covid.model',
+            root_form='tweet_tokens_formal',
+            df_train=self.features_cv19_df
+        )
         # self.fit_doc2vec(
         #     label='model_dmm_flu.model',
         #     root_form='tweet_tokens_formal',
         #     df_train=self.features_train_df
         # )
-        self.umap_on_vectors(
-            mdl='model_dmm_covid.model.pkl.gz',
-            keys=['trump', 'safety', 'russia', 'rush', 'autism']
-        )
-        self.visualize_umap_embeddings(
-            keys=['trump', 'safety', 'russia', 'rush', 'autism'],
-            fname='similar_words_covid.png'
-        )
+        # self.umap_on_vectors(
+        #     mdl='model_dmm_covid.model.pkl.gz',
+        #     keys=['trump', 'safety', 'russia', 'rush', 'autism']
+        # )
+        # self.visualize_umap_embeddings(
+        #     keys=['trump', 'safety', 'russia', 'rush', 'autism'],
+        #     fname='similar_words_covid.png'
+        # )
+        # self.umap_on_vectors(
+        #     mdl='model_dmm_flu.model.pkl.gz',
+        #     keys=['trump', 'safety', 'russia', 'rush', 'autism']
+        # )
+        # self.visualize_umap_embeddings(
+        #     keys=['trump', 'safety', 'russia', 'rush', 'autism'],
+        #     fname='similar_words_flu.png'
+        # )
 
 def main():
     """ Runs model training processes and saves errors in /reports/figures.

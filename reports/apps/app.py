@@ -191,7 +191,7 @@ app.layout = html.Div(
                                             multi=False,
                                             options=OPTS_KEYS,
                                             placeholder="Select first word",
-                                            value='fauci'
+                                            value='biden'
                                         ),
                                         html.P(' '),
                                         html.P('Select second word to compare: '),
@@ -200,7 +200,7 @@ app.layout = html.Div(
                                             multi=False,
                                             options=OPTS_KEYS,
                                             placeholder="Select next word",
-                                            value='microchip'
+                                            value='russia'
                                         )
                                     ],
                                 ),

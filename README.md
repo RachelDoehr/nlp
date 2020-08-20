@@ -1,57 +1,141 @@
-NLP
-==============================
 
-Using natural language processing to identify twitter data
+![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/example_logistic_reg.gif?raw=true)
 
-Project Organization
-------------
+# Prediction of Cardiac Diagnosis (Heart Disease) Using Patient Data
 
-    ├── LICENSE
-    ├── Makefile           <- Makefile with commands like `make data` or `make train`
-    ├── README.md          <- The top-level README for developers using this project.
-    ├── data
-    │   ├── external       <- Data from third party sources.
-    │   ├── interim        <- Intermediate data that has been transformed.
-    │   ├── processed      <- The final, canonical data sets for modeling.
-    │   └── raw            <- The original, immutable data dump.
-    │
-    ├── docs               <- A default Sphinx project; see sphinx-doc.org for details
-    │
-    ├── models             <- Trained and serialized models, model predictions, or model summaries
-    │
-    ├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-    │                         the creator's initials, and a short `-` delimited description, e.g.
-    │                         `1.0-jqp-initial-data-exploration`.
-    │
-    ├── references         <- Data dictionaries, manuals, and all other explanatory materials.
-    │
-    ├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
-    │   └── figures        <- Generated graphics and figures to be used in reporting
-    │
-    ├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
-    │                         generated with `pip freeze > requirements.txt`
-    │
-    ├── setup.py           <- makes project pip installable (pip install -e .) so src can be imported
-    ├── src                <- Source code for use in this project.
-    │   ├── __init__.py    <- Makes src a Python module
-    │   │
-    │   ├── data           <- Scripts to download or generate data
-    │   │   └── make_dataset.py
-    │   │
-    │   ├── features       <- Scripts to turn raw data into features for modeling
-    │   │   └── build_features.py
-    │   │
-    │   ├── models         <- Scripts to train models and then use trained models to make
-    │   │   │                 predictions
-    │   │   ├── predict_model.py
-    │   │   └── train_model.py
-    │   │
-    │   └── visualization  <- Scripts to create exploratory and results oriented visualizations
-    │       └── visualize.py
-    │
-    └── tox.ini            <- tox file with settings for running tox; see tox.readthedocs.io
+ *A demonstration of various classification algorithms on UCI ML dataset*
 
+**COMPARISON OF LOGISTIC REGRESSION, RANDOM FOREST, BOOSTED DECISION TREES, AND A VOTING CLASSIFIER. HYPERPARAMETER TUNING + FEATURE IMPORTANCE ANALYSIS**
 
---------
+> -> Uses the popular UCI heart disease patient dataset available <a href="https://archive.ics.uci.edu/ml/datasets/heart+Disease" target="_blank">here</a>
 
-<p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>
+> -> Models include logistic regression, random forest, boosted decision trees, and a meta voting classifier of all 3; logistic regression has the highest accuracy by a small margin
+
+> -> Post-hoc analysis is done on visualizing the various algorithm's learned decision spaces with respect to how cholesterol and maximum heart rate affect the predicted probability of heart disease
+
+![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/logistic_equation.PNG?raw=true)
+
+**Motivation & Project Summary**
+
+This project is a demonstration of using various binary classification algorithms on the UCI heart disease dataset to predict whether or not a patient is likely to have heart disease. The broad approach taken was to use k-fold cross validation to tune the hyperparameters and select the optimal model for each algorithm examined. Then, the out of sample performance was tested on a separate hold out batch, and accuracy reports for misclassifications generated. Finally, two well-known variables, cholesterol and maximum heart rate, are examined by visualizing each model's learned decision space with respect to possible values of those predictors.
+
+The models considered are either semiparametric (Logistic Regression) or entirely non-parametric in nature (Random Forest, AdaBoost + Decision Trees, Voting Classifier). The sample is conveniently evenly balanced across both classes from the start.**The outperformance of the logistic regression relative to random forests and boosted trees implies that 1) the problem is linearly separable in nature, and 2) there are more useful variables in the dataset than noise variables (natural, given the curated nature of this data).**
+
+> ***ReadMe Table of Contents***
+
+- INSTALLATION & SETUP
+
+*RESULTS*
+- DATA VISUALIZATION
+- ERROR METRICS
+- FEATURE IMPORTANCE
+
+---
+
+## Installation & Setup
+
+### Clone
+
+- Clone this repo to your local machine using `https://github.com/RachelDoehr/heart-disease.git`
+
+### Setup
+
+- Install the required packages
+
+> Requires python3. Suggest the use of an Anaconda environment for easy package management.
+
+```shell
+$ pip install -r requirements.txt
+```
+
+### Example Run of All Processes
+
+- Recommend running train_model as a background process that can be returned to later if running locally. Given the range of hyperparameters tested in cross-validation, significant training time is incurred
+- Estimated runtime will vary by computer, but on an Intel(R) Core(TM) i5-6200U CPU @2.30GHz with 8.00 GB memory, searching all parameters for the models takes ~45 min
+
+```shell
+$ python /src/data/build_features.py > /logs/features_log.txt
+$ nohup python /src/models/train_model.py > /logs/models_log.txt &
+```
+
+---
+
+## Results
+
+**Preliminary Data Visualization**
+
+*The dataset consists of 5 continous variables and the remaining 8 are categorical or binary, which are handled appropriately with dummy variables. The target, 0 or 1, represents whether or not a patient has heart disease as indicated by contraction by >50% of any major heart vessel.*
+
+We begin by plotting the raw distributions of the continous variables with histograms:
+
+![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/continous_variables_dist.png?raw=true)
+
+Four of the five appear relatively normal distributions, albeit with slight skews. ST depression, however, is not. The same variables' distributions bifurcated by whether or not the patient had heart disease (using a kernel density estimator) are:
+
+![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/continous_variables_by_target.png?raw=true)
+
+Some of those variables do appear to significantly vary by target. Additionally, the remaining categorical variables distributions include:
+![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/categorical_variables_dist.png?raw=true)
+ 
+Additional visualizations are available in /reports/figures.
+
+**Error Metrics**
+
+Grid search k-fold cross-validation is used across a variety of hyperparameters to select the optimal fit for each of the models examined.
+
+| Model                               	| OOS Accuracy 	|
+|-------------------------------------	|--------------	|
+| Logistic Regression                 	| 88.5%        	|
+| Random Forest                       	| 86.9%        	|
+| AdaBoost Decision Trees             	| 83.6%        	|
+| Voting Classifier of Models (1)-(3) 	| 88.5%        	|
+
+In addition to the simple accuracy above, the confusion matrices for Logistic Regression and Random Forests' performance on the test set are (others available in /reports/figures):
+
+*Logistic Regression*
+
+![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/conf_matrix_Logistic_Regression.png?raw=true)
+
+*Random Forest*
+
+![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/conf_matrix_Random_Forest.png?raw=true)
+
+We can see above that the primary difference in the errors is from the random forest over-predicting heart disease when it truly was not there (14% of patients whose true label is no disease vs. the logistic regression's 10%). This may not be a bad thing (false positives) in a clinical preventative context, however, as it is almost certainly better than false negatives.
+
+The ROC curves illustrate this point as well, shown below. That being said, there isn't really a trade-off between false positives and false negatives between logistic regression and random forest; rather, logistic regression has lower false positives and performs the exact same as the random forest at identifying/handling instances of actually having heart disease (it does not miss them).
+
+*Logistic Regression*
+
+![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/roc_curve_Logistic_Regression.png?raw=true)
+
+*Random Forest*
+
+![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/roc_curve_Random_Forest.png?raw=true)
+
+The results for the boosted decision trees and the voting classifier are available in /reports/figures, although the boosted trees underperform both simple LR and RF, while the voting classifier performs comparably, likely due to the higher weighting placed on the LR.
+
+**Feature Importance**
+
+We can examine the learned behavior of the trained models with respect to variables of interest. Although regularization is used in the logit model, skewing any sort of standard errors or statistical inference measures by depressing the parameter estimates (and similarly, constraining the max depth of the trees in the nonparametric estimators), it is interesting to understand the model's internal dynamics nevertheless.
+
+I calculate what the 'average' male and female in the dataset look like by taking the mean of the continous variable by group or mode for categorical/binary variables. Next, 'synthetic' data is generated by duplicating the gender averages across the range of potential cholesterol and maximum heart rate ("thalach") values seen in the data.
+
+Finally, these ~4,000 synthetic data points are pushed through each trained model to generate a predicted probability of heart disease. Plotting these creates a surface, over which I plotted the scatter points of the actual predicted probabilities for the ~300 patients in the dataset:
+
+![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/probability_plot_logreg%20copy.png?raw=true)
+
+The graph above, the logit model's output, illustrates both the necessarily linear nature of the model as well as the intuitive positive link between higher maximum heart rates noted on admission to the hospital and the likelihood of cardiac disease. On the other hand, the plane is relatively invariant with respect to changes in serum cholesterol levels. 
+
+Comparing the above to the learned decision space for the random forest highlights the nonlinearity of decision trees:
+
+![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/probability_plot_random_forest.png?raw=true)
+
+One can immediately see how the RF is bucketing patients along different values of these continous variables, with a cluster of high risk individuals at low cholesterol + high max heart rate, and the remaining spread out below. Interestingly, the decision plane appears to put higher cholesterol levels at lower risk of cardiac disease, as long as max heart rate is not elevated.
+
+Finally, the boosted decision trees appear somewhat similar to the results from random forest (natural), although the total range of predicted probabilities is significantly constrained relative to other models (bunched near 0.5 rather than tending toward clusters at 0 or 1). Also, the transition between 'buckets' in moving up and down the possible values of thalach and cholesterol are much more pronounced, which presumably reflects the fact that this model is a collection of decision trees with binary nodes that solve for improving the error metrics for individual datapoints, while the RF is a collection of trees over which predicted probabilities are averaged, leading to a smoother transition.
+
+![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/probability_plot_adaboost_trees.png?raw=true)
+
+---
+
+<p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p> 

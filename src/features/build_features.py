@@ -55,7 +55,7 @@ class TrainingDataMaker():
         self.ps = PorterStemmer()
 
         # tweet preprocessing setup ----------------------------------------
-        p.set_options(p.OPT.URL, p.OPT.EMOJI, p.OPT.MENTION, p.OPT.RESERVED, p.OPT.SMILEY) # get rid of everything but hashtags and numbers
+        p.set_options(p.OPT.URL, p.OPT.EMOJI, p.OPT.MENTION, p.OPT.RESERVED, p.OPT.SMILEY, p.OPT.HASHTAG) # get rid of everything but numbers
 
     def get_training_data(self):
 
@@ -74,9 +74,9 @@ class TrainingDataMaker():
     def get_covid19_vac_tweets(self):
 
         '''Queries the PostresSQL DB on AWS to get the COVID-19 incoming tweets.
-        The DB is constantly streaming them in so for testing purposes here have put a limit of 5,000 for speed.
+        The DB is constantly streaming them in so for testing purposes here have put a limit for speed.
         
-        [Considering productionizing this part later if I make a dashboard]'''
+        '''
 
         db_string = "postgresql+psycopg2://postgres:" + POSTGRES_PASSWORD + "@database.cgiiehbwlxvq.us-east-2.rds.amazonaws.com"
         engine = create_engine(db_string)
@@ -235,7 +235,7 @@ class TrainingDataMaker():
         self.clean_data()
         #self.training_clean_df = self.preprocess_tweet_df(self.raw_df, 'tweet_text', lemma=True)
         #self.training_clean_df.to_csv(self.processed_data_path.joinpath('training_nlp.csv'))
-        self.cv19_clean_df = self.preprocess_tweet_df(self.raw_cv19_df, 'tweet_text', lemma=False)
+        self.cv19_clean_df = self.preprocess_tweet_df(self.raw_cv19_df, 'tweet_text', lemma=True)
         self.cv19_clean_df.to_csv(self.processed_data_path.joinpath('cv19_nlp.csv'))
 
 

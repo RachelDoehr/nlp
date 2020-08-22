@@ -176,7 +176,7 @@ class NLPClassifier():
         self.load_data()
         self.fit_doc2vec(
             label='model_dmm_covid.model',
-            root_form='tweet_tokens_formal',
+            root_form='tweet_lemmas_formal',
             df_train=self.features_cv19_df
         )
         # self.fit_doc2vec(

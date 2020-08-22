@@ -100,7 +100,7 @@ The Doc2Vec distributed memory model is trained on the tweet lemmas using gensim
 
 Feature vector size of 200 is used, and each tweet is treated as its own document. The neural network is trained for 30 epochs. 
 
-![Alt Text](https://github.com/RachelDoehr/nlp/blob/master/reports/figures/dash_shot1.PNG?raw=true)
+![Alt Text](https://github.com/RachelDoehr/nlp/blob/master/reports/figures/gensim_training.PNG?raw=true)
 
 **Dimensionality Reduction**
 
@@ -119,6 +119,8 @@ To make a dynamic dashboard that allows users to visualize a comparison of two d
 Given that the entire Word2Vec model is too large to hold in memory simultaneously while running the dashboard, the embeddings for a selection of words were put through UMAP in advance, and stored in local numpy files which can be quickly loaded up in app.py.
 
 The list of selected words generates the dropdown menu for comparison, and the selected reduced embeddings are plotted on 2 dimensions along with the 25 most similar words in the vocabulary.
+
+![Alt Text](https://github.com/RachelDoehr/nlp/blob/master/reports/figures/umap_gif.gif?raw=true)
 
 ---
 

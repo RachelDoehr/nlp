@@ -120,7 +120,7 @@ Given that the entire Word2Vec model is too large to hold in memory simultaneous
 
 The list of selected words generates the dropdown menu for comparison, and the selected reduced embeddings are plotted on 2 dimensions along with the 25 most similar words in the vocabulary.
 
-![Alt Text](https://github.com/RachelDoehr/nlp/blob/master/reports/figures/umap_gif.gif?raw=true)
+![Alt Text](https://github.com/RachelDoehr/nlp/blob/master/reports/figures/dashapp.gif?raw=true)
 
 ---
 

@@ -112,6 +112,9 @@ While t-SNE is usually used for dimensionality reduction here, we use UMAP. UMAP
 
 ![Alt Text](https://github.com/RachelDoehr/nlp/blob/master/reports/figures/umap_gif.gif?raw=true)
 
+## Results
+---
+
 **Dashboard App**
 
 To make a dynamic dashboard that allows users to visualize a comparison of two different words' 25 most similar words, <a href="  https://plotly.com/dash/" target="_blank">Dash</a> was used. Dash runs a Flask framework and allows data scientists to relatively quickly generate interactive graphs with Plotly.

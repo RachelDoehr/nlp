@@ -72,57 +72,43 @@ $ nohup python /reports/apps/app.py
 
 **Preliminary Data Collection**
 
-We begin by plotting the raw distributions of the continous variables with histograms:
+The data collection process has been running continously for several weeks, yielding ~0.5 million tweets as of late August 2020:
 
-![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/continous_variables_dist.png?raw=true)
+![Alt Text](https://github.com/RachelDoehr/nlp/blob/master/reports/figures/postgresdb.PNG?raw=true)
 
-Four of the five appear relatively normal distributions, albeit with slight skews. ST depression, however, is not. The same variables' distributions bifurcated by whether or not the patient had heart disease (using a kernel density estimator) are:
+The tweets had to contain the word 'vaccine' in them to be collected.
 
-![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/continous_variables_by_target.png?raw=true)
+**Preprocessing**
 
-Some of those variables do appear to significantly vary by target. Additionally, the remaining categorical variables distributions include:
-![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/categorical_variables_dist.png?raw=true)
- 
-Additional visualizations are available in /reports/figures.
+Data cleaning included the following:
 
-**Error Metrics**
+1) Remove misc. Twitter language (emoji's, hashtags, etc.)
+2) Tokenize, remove stop words, make lowercase
+3) Lemmatize remaining words
 
-Grid search k-fold cross-validation is used across a variety of hyperparameters to select the optimal fit for each of the models examined.
+Once preprocessed, we are left with workable tweets and can either proceed with the cleaned tokens or use the lemmas:
 
-| Model                               	| OOS Accuracy 	|
-|-------------------------------------	|--------------	|
-| Logistic Regression                 	| 88.5%        	|
-| Random Forest                       	| 86.9%        	|
-| AdaBoost Decision Trees             	| 83.6%        	|
-| Voting Classifier of Models (1)-(3) 	| 88.5%        	|
+| tweet_text                                                                                                                                                                   	| tweet_clean                                                                                                                         	| tweet_tokens                                                                                                               	| tweet_tokens_formal                                                                                                        	| tweet_stems_formal                                                                                                      	| tweet_lemmas_formal                                                                                                                 	|
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------	|-------------------------------------------------------------------------------------------------------------------------------------	|----------------------------------------------------------------------------------------------------------------------------	|----------------------------------------------------------------------------------------------------------------------------	|-------------------------------------------------------------------------------------------------------------------------	|-------------------------------------------------------------------------------------------------------------------------------------	|
+| Also you may want to   read this.... vaccine manufacturers ARE exempt from liability like I   said....https://t.co/TXZjzsAIE8                                                	| also you may want to   read this vaccine manufacturers are exempt from liability like said                                          	| ['also', 'may', 'want', 'read', 'vaccine',   'manufacturers', 'exempt', 'liability', 'like', 'said']                       	| ['also', 'may', 'want', 'read', 'vaccine',   'manufacturers', 'exempt', 'liability', 'like', 'said']                       	| ['also', 'may', 'want', 'read', 'vaccin',   'manufactur', 'exempt', 'liabil', 'like', 'said']                           	| ['also', 'may', 'want', 'read', 'vaccine',   'manufacturer', 'exempt', 'liability', 'like', 'say']                                  	|
+| Russian COVID-19 vaccine \| Sputnik V is   safe and effective, says RDIF CEO: https://t.co/AOlFVh49sR                                                                        	| russian covid 19 vaccine sputnik is safe   and effective says rdif ceo                                                              	| ['russian', 'covid', '19', 'vaccine', 'sputnik', 'safe', 'effective',   'says', 'rdif', 'ceo']                             	| ['russian', 'covid', '19', 'vaccine', 'sputnik', 'safe', 'effective',   'says', 'rdif', 'ceo']                             	| ['russian', 'covid', '19', 'vaccin', 'sputnik', 'safe', 'effect', 'say',   'rdif', 'ceo']                               	| ['russian', 'covid', '19', 'vaccine', 'sputnik', 'safe', 'effective',   'say', 'rdif', 'ceo']                                       	|
+| @Zlatty @odonnell_r @goodyear Your header   says it all ware a mask! So your asleep sheep! Also be sure to take the   vaccine! As Iâ€™m sure u always do! And hate yourself! 	| your header says it all ware mask so your   asleep sheep also be sure to take the vaccine as im sure always do and hate   yourself  	| ['header', 'says', 'ware', 'mask', 'asleep', 'sheep', 'also', 'sure',   'take', 'vaccine', 'im', 'sure', 'always', 'hate'] 	| ['header', 'says', 'ware', 'mask', 'asleep', 'sheep', 'also', 'sure',   'take', 'vaccine', 'im', 'sure', 'always', 'hate'] 	| ['header', 'say', 'ware', 'mask', 'asleep', 'sheep', 'also', 'sure',   'take', 'vaccin', 'im', 'sure', 'alway', 'hate'] 	| ['header', 'say', 'ware', 'mask', 'asleep', 'sheep', 'also', 'sure',   'take', 'vaccine', '-PRON-', 'be', 'sure', 'always', 'hate'] 	|
 
-In addition to the simple accuracy above, the confusion matrices for Logistic Regression and Random Forests' performance on the test set are (others available in /reports/figures):
+**Model Training**
 
-*Logistic Regression*
+The Doc2Vec distributed memory model is trained on the tweet lemmas using gensim, as per the documentation in <a href=" https://radimrehurek.com/gensim/models/doc2vec.html" target="_blank">Gensim.</a> 
 
-![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/conf_matrix_Logistic_Regression.png?raw=true)
+Feature vector size of 200 is used, and each tweet is treated as its own document. The neural network is trained for 30 epochs. 
 
-*Random Forest*
+**Dimensionality Reduction**
 
-![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/conf_matrix_Random_Forest.png?raw=true)
+Once the learned vector representations have been created for the covid-19 vaccine tweet vocabulary, each word can be representated as a 200x1 vector. A vector size of 200 does not lend itself well to visualization, so in order to distill the embeddings to a manageable space, we implement UMAP on the words of interest.
 
-We can see above that the primary difference in the errors is from the random forest over-predicting heart disease when it truly was not there (14% of patients whose true label is no disease vs. the logistic regression's 10%). This may not be a bad thing (false positives) in a clinical preventative context, however, as it is almost certainly better than false negatives.
+The words of interest are manually selected, and then built out by obtaining the 25 words most similar to each initial word.
 
-The ROC curves illustrate this point as well, shown below. That being said, there isn't really a trade-off between false positives and false negatives between logistic regression and random forest; rather, logistic regression has lower false positives and performs the exact same as the random forest at identifying/handling instances of actually having heart disease (it does not miss them).
+While t-SNE is usually used for dimensionality reduction here, we use UMAP. UMAP is a new technique by McInnes et al. that offers a number of advantages over t-SNE, most notably increased speed and better preservation of the data's global structure. For example, UMAP can project the 784-dimensional, 70,000-point MNIST dataset in less than 3 minutes, compared to 45 minutes for scikit-learn's t-SNE implementation. A detailed explanation of UMAP can be found <a href="  https://pair-code.github.io/understanding-umap/" target="_blank">here,</a> including this excellent visualization of how UMAP compares to t-SNE:
 
-*Logistic Regression*
 
-![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/roc_curve_Logistic_Regression.png?raw=true)
-
-*Random Forest*
-
-![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/roc_curve_Random_Forest.png?raw=true)
-
-The results for the boosted decision trees and the voting classifier are available in /reports/figures, although the boosted trees underperform both simple LR and RF, while the voting classifier performs comparably, likely due to the higher weighting placed on the LR.
-
-**Feature Importance**
-
-We can examine the learned behavior of the trained models with respect to variables of interest. Although regularization is used in the logit model, skewing any sort of standard errors or statistical inference measures by depressing the parameter estimates (and similarly, constraining the max depth of the trees in the nonparametric estimators), it is interesting to understand the model's internal dynamics nevertheless.
 
 I calculate what the 'average' male and female in the dataset look like by taking the mean of the continous variable by group or mode for categorical/binary variables. Next, 'synthetic' data is generated by duplicating the gender averages across the range of potential cholesterol and maximum heart rate ("thalach") values seen in the data.
 
@@ -132,13 +118,7 @@ Finally, these ~4,000 synthetic data points are pushed through each trained mode
 
 The graph above, the logit model's output, illustrates both the necessarily linear nature of the model as well as the intuitive positive link between higher maximum heart rates noted on admission to the hospital and the likelihood of cardiac disease. On the other hand, the plane is relatively invariant with respect to changes in serum cholesterol levels. 
 
-Comparing the above to the learned decision space for the random forest highlights the nonlinearity of decision trees:
 
-![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/probability_plot_random_forest.png?raw=true)
-
-One can immediately see how the RF is bucketing patients along different values of these continous variables, with a cluster of high risk individuals at low cholesterol + high max heart rate, and the remaining spread out below. Interestingly, the decision plane appears to put higher cholesterol levels at lower risk of cardiac disease, as long as max heart rate is not elevated.
-
-Finally, the boosted decision trees appear somewhat similar to the results from random forest (natural), although the total range of predicted probabilities is significantly constrained relative to other models (bunched near 0.5 rather than tending toward clusters at 0 or 1). Also, the transition between 'buckets' in moving up and down the possible values of thalach and cholesterol are much more pronounced, which presumably reflects the fact that this model is a collection of decision trees with binary nodes that solve for improving the error metrics for individual datapoints, while the RF is a collection of trees over which predicted probabilities are averaged, leading to a smoother transition.
 
 ![Alt Text](https://github.com/RachelDoehr/heart-disease/blob/master/reports/figures/probability_plot_adaboost_trees.png?raw=true)
 
